@@ -170,6 +170,7 @@ int CMSet::DoCalc(double x, double y)
 		//printf("%f\n", d);
 		if (d >= 4.0)
 		{
+			// Diverged.
 			done = false;
 			break;
 		}
@@ -177,7 +178,8 @@ int CMSet::DoCalc(double x, double y)
 	}
 
 	if (done)
-	{
+	{ 
+		// Converged.
 		return(0);
 	}
 
