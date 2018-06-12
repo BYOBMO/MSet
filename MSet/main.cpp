@@ -55,6 +55,10 @@ CTimer timer;
 
 SDL_Thread *gThread;
 
+
+//
+// Thread for high resolution calulations.
+//
 int CalcThread(void* data)
 {
 	mMsetHi.mEnd = false;
@@ -69,6 +73,9 @@ int CalcThread(void* data)
 	return(0);
 }
 
+//
+// Build the color gradient for the final rendered images.
+//
 void MakeColors(Uint32 pixelFormat)
 {
 	int i, k;
@@ -182,13 +189,6 @@ bool init()
 				//Initialize renderer color
 				SDL_SetRenderDrawColor(gRenderer, 0x00, 0x00, 0x00, 0xFF);
 
-				////Initialize PNG loading
-				//int imgFlags = IMG_INIT_PNG;
-				//if (!(IMG_Init(imgFlags) & imgFlags))
-				//{
-				//	printf("SDL_image could not initialize! SDL_image Error: %s\n", IMG_GetError());
-				//	success = false;
-				//}
 
 				//Create blank streamable texture
 				gPlotTexHi = SDL_CreateTexture(gRenderer, gFormat, SDL_TEXTUREACCESS_STREAMING, winX, winY);
@@ -203,6 +203,9 @@ bool init()
 	return success;
 }
 
+//
+// Render teh final calcualtions to a texture.
+//
 void Draw(CMSet *mset)
 {
 	void *pixels;
@@ -217,11 +220,9 @@ void Draw(CMSet *mset)
 	int k;
 
 	//Lock texture for manipulation
-
 	SDL_LockTexture(gPlotTexHi, NULL, &pixels, &pitch);
 
-
-
+	// Calcualte the bytes per pixel. Should be 4 (RGBA). But some screens could be 3(RGB).
 	bpp = pitch / winX;
 
 	for (x = 0; x < mset->mDimX; x++)
@@ -230,6 +231,7 @@ void Draw(CMSet *mset)
 		{
 			iterations = mset->points[x][y];
 
+			// Get a color value from teh gradient based on the number of iterations.
 			k = 2047 * ((double)iterations / (double)maxiter);
 			if (k < 0)
 				k = 0;
@@ -242,26 +244,32 @@ void Draw(CMSet *mset)
 				c = black;
 			}
 			index = (x) + (y * pitch/bpp);
-			*((Uint32*)pixels + index) = c;
+			*((Uint32*)pixels + index) = c; // Update the texture's pixel data.
 		}
 	}
 
 	//Unlock texture to update
-
-		SDL_UnlockTexture(gPlotTexHi);
+	SDL_UnlockTexture(gPlotTexHi);
 
 	pixels = NULL;
 
+	// Set the rendering dimensions based on whether it was a high or low resolution image.
 	texW = mset->mDimX;
 	texH = mset->mDimY;
 }
 
+
+//
+// Run a low resolution plot.
+//
  void RunPlot(bool hi)
  {
 	mMsetHi.SetPlot(gX1, gX2, gY1, gY2, scaleFactor, maxiter);
 	mMsetHi.mCancel = true;
 	mMsetHi.mStart = true;
 
+	// Increase teh iterations based on how far we are zoomed in.
+	// High zoom values can handle more iterations.
 	int scale_iterations = 100;
 	double delta = gX2 - gX1;
 	if (delta < 0.01)
@@ -271,7 +279,10 @@ void Draw(CMSet *mset)
 	if (scale_iterations > maxiter)
 		scale_iterations = maxiter;
 
+	// Run teh calcualtions.
 	mMsetLo.RunPlot(gX1, gX2, gY1, gY2, scaleFactor, scale_iterations);
+
+	// Render the result to a texture.
 	Draw(&mMsetLo);
  }
 
@@ -304,6 +315,9 @@ void Setup()
 }
 
 
+//
+// Runs a calculation centered on the specified point.
+//
 void DoCenter(int px, int py)
 {
 	double dx, dy;
@@ -327,6 +341,9 @@ void DoCenter(int px, int py)
 	RunPlot(true);
 }
 
+//
+// Zoom in or out around the specified point.
+//
 void DoMouse(int px, int py, double z)
 {
 	double dx, dy;
@@ -336,33 +353,40 @@ void DoMouse(int px, int py, double z)
 
 	double xpercent, ypercent;
 
-	//curX = px;
-	//curY = py;
-	printf("%d %d\n", px, py);
+	//printf("%d %d\n", px, py);
+
+	// Figure out the current X and Y ranges.
 	dx = gX2 - gX1;
 	dy = gY2 - gY1;
 
+	// Find the center point of the current plot.
 	centerX = gX1 + dx / 2.0;
 	centerY = gY1 + dy / 2.0;
 
+	// Find out where the poitn is in the current plot.
 	xpercent = ((double)px / (double)winX);
 	ypercent = ((double)py / (double)winY);
 
 	x = gX1 + dx * xpercent;
 	y = gY2 - dy * ypercent;
 
+	// The zoom is done around the specified point. We need to translate the entire plot
+	// so teh selected point remains in the same spot on the screen. This could probably
+	// all be done with one clever matrix calcualtion...
 	gXoffset = x - centerX;
 	gYoffset = y - centerY;
 
-	double sx = dx * xpercent ;
-	double sy = dy * ypercent ;
+	double sx = dx * xpercent;
+	double sy = dy * ypercent;
 
+	// FIgure out the new X and Y ranges based on the zoom.
 	gX1 = x - dx / z / 2;
 	gY1 = y - dy / z / 2;
 
 	gX2 = x + dx / z / 2;
 	gY2 = y + dy / z / 2;
 
+	// Now translate so the selected point remains stationary.
 	dx = gX2 - gX1;
 	dy = gY2 - gY1;
 	x = gXoffset / z;
@@ -372,25 +396,25 @@ void DoMouse(int px, int py, double z)
 	gX2 -= x;
 	gY1 -= y;
 	gY2 -= y;
-	RunPlot(true);
 
-	//repaint();
+	// Recalculate points.
+	RunPlot(true);
 }
 
 
 #undef main
 int main()
 {
+	//Event handler
+	SDL_Event e;
+	bool quit = false;
+
 	init();
 	MakeColors(gFormat);
 	Setup();
 
+	// Start with a high rez plot.
 	mMsetHi.SetPlot(gX1, gX2, gY1, gY2, scaleFactor, maxiter);
-
-	bool quit = false;
-
-	//Event handler
-	SDL_Event e;
 	gThread = SDL_CreateThread(CalcThread, "LazyThread", NULL);
 	mMsetHi.Go();
 
@@ -505,19 +529,17 @@ int main()
 			}
 			else if (e.type == SDL_MOUSEWHEEL)
 			{
-				//Get mouse position
-				//int x, y;
-				//SDL_GetMouseState(&x, &y);
-				//if (e.wheel.y > 0)
-				//{
-				//	DoMouse(x, y, zfactor);
-				//}
-				//else if (e.wheel.y < 0)
-				//{
-				//	DoMouse(x, y, 0.5);
-				//}
-
-				//RunPlot();
+				// Zoom using the mouse wheel.
+				int x, y;
+				SDL_GetMouseState(&x, &y);
+				if (e.wheel.y > 0)
+				{
+					DoMouse(x, y, zfactor);
+				}
+				else if (e.wheel.y < 0)
+				{
+					DoMouse(x, y, 0.5);
+				}
 			}
 			else if (e.type == SDL_JOYBUTTONDOWN)
 			{
@@ -632,6 +654,7 @@ int main()
 			}
 		}
 
+		// Timer for updating the cursor.
 		if (timer.getTicks() > 8)
 		{
 			timer.stop();
@@ -652,6 +675,8 @@ int main()
 		}
 
 	
+		// Check the hi rez thread to see if a new render is ready.
+		// If it is then save it to the rendering texture.
 		if (mMsetHi.mReady)
 		{
 			mMsetHi.mReady = false;
@@ -660,6 +685,8 @@ int main()
 		cursor->SetPosition(curX - cursor->GetWidth() / 2, curY - cursor->GetHeight() / 2);
 		SDL_RenderClear(gRenderer);
 
+		// Figure out the dimension to render. if it's a hi rez image then the window and texture
+		// should be equal sizes. If it's a low rez image then it will need to be scaled up.
 		SDL_Rect src = { 0,0,texW,texH };
 		SDL_Rect dst = { 0,0,winX,winY };
 

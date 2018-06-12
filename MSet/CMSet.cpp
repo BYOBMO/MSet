@@ -24,6 +24,9 @@ void CMSet::SetDim(SDL_Renderer *renderer, Uint32 format, int x, int y)
 	}
 }
 
+//
+// Run a plot on the specified range.
+//
 void CMSet::RunPlot(double x1, double x2, double y1, double y2, int scaleFactor, int max)
 {
 	mReady = false;
@@ -42,6 +45,9 @@ void CMSet::RunPlot(double x1, double x2, double y1, double y2, int scaleFactor,
 	mReady = StartMSet();
 }
 
+//
+// Set the plot range for an asynchronous plot.
+//
 void CMSet::SetPlot(double x1, double x2, double y1, double y2, int scaleFactor, int max)
 {
 	maxIter = max;
@@ -56,9 +62,12 @@ void CMSet::SetPlot(double x1, double x2, double y1, double y2, int scaleFactor,
 
 	mReady = false;
 	mCancel = false;
-	mStart = true;
+	mStart = true; // Tell the thread a plot is ready for running.
 }
 
+//
+// Start an asychronous plot.
+//
 void CMSet::Go()
 {
 	mReady = false;
@@ -68,6 +77,9 @@ void CMSet::Go()
 	mReady = StartMSet();
 }
 
+//
+// Iterates of the pixels to generate the plot data.
+//
 bool CMSet::StartMSet()
 {
 	int i, x, y;
@@ -80,6 +92,7 @@ bool CMSet::StartMSet()
 	dx = gX2 - gX1;
 	dy = gY2 - gY1;
 
+	// Map the data points to pixel values.
 	xd = dx / (float)mDimX;
 	yd = dy / (float)mDimY;
 
@@ -95,76 +108,80 @@ bool CMSet::StartMSet()
 		{
 			if (mCancel)
 			{
+				// Asynchrnous plot cancelled.
 				printf("Cancel\n");
 				return(false);
 			}
 			y1 = y1 - yd;
 
 			y1 = gY2 - ((float)y / (float)mDimY * dy);
-			i = DoCalc(x1, y1);
-			//if (i > 0)
-			//{
-				points[x][y] = i;
-			//}
+			i = DoCalc(x1, y1); // Get the iterations from teh calculation.
+
+			points[x][y] = i;
 		}
 		printf("%03d\r", x);
 	}
+
+	// returns true if not cancelled. This indicates a new set of points is ready for rendering.
 	return(true);
 }
 
-	int CMSet::DoCalc(double x, double y)
+//
+// Calculate the number of iterations for the specified point.
+//
+int CMSet::DoCalc(double x, double y)
+{
+	double x1, y1, zx, zy;
+	int i;
+	bool done = false;
+	double d;
+
+	double x2, y2;
+
+	x1 = 0;
+	y1 = 0;
+
+
+	//s = iterField.getText();
+
+	int max;// = Integer.parseInt(s.trim());
+
+	max = maxIter;
+
+	for (i = 1; i <= max; i++)
 	{
-		double x1, y1, zx, zy;
-		int i;
-		bool done = false;
-		double d;
-
-		double x2, y2;
-
-		x1 = 0;
-		y1 = 0;
-
-
-		//s = iterField.getText();
-
-		int max;// = Integer.parseInt(s.trim());
-
-		max = maxIter;
-
-		for (i = 1; i <= max; i++)
+		if (mCancel)
 		{
-			if (mCancel)
-			{
-				printf("Cancel\n");
-				return(0);
-			}
-			done = true;
-
-			x2 = x1 * x1;
-			y2 = y1 * y1;
-
-			zx = x2 - y2 + x;
-			zy = 2 * x1*y1 + y;
-
-			x1 = zx;
-			y1 = zy;
-
-			d = x2 + y2;
-			//printf("%f\n", d);
-			if (d >= 4.0)
-			{
-				done = false;
-				break;
-			}
-
-		}
-
-		if (done)
-		{
+			printf("Cancel\n");
 			return(0);
 		}
+		done = true;
 
-		return(i);
+		x2 = x1 * x1;
+		y2 = y1 * y1;
+
+		zx = x2 - y2 + x;
+		zy = 2 * x1*y1 + y;
+
+		x1 = zx;
+		y1 = zy;
+
+		d = x2 + y2;
+		//printf("%f\n", d);
+		if (d >= 4.0)
+		{
+			done = false;
+			break;
+		}
+
 	}
+
+	if (done)
+	{
+		return(0);
+	}
+
+	return(i);
+}
 
 
