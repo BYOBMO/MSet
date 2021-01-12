@@ -425,7 +425,20 @@ int main()
 	while (!quit)
 	{
 		const Uint8 *keys = SDL_GetKeyboardState(NULL);
+		Uint8 jSelect, jStart;
 
+		if (gGameController != NULL)
+		{
+			jSelect = SDL_JoystickGetButton(gGameController, 6);
+			jStart = SDL_JoystickGetButton(gGameController, 7);
+
+			//printf("%d %d\n", jStart, jSelect);
+			if (jSelect == 1 && jStart == 1)
+			{
+				quit = true;
+				break;
+			}
+		}
 
 		//Handle events on queue
 		while (SDL_PollEvent(&e) != 0)
